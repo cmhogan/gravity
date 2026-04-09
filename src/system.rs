@@ -25,11 +25,14 @@ impl SystemState {
         self.positions.push(position);
         self.velocities.push(velocity);
         self.accelerations.push(DVec3::ZERO);
-        self.history.push(VecDeque::with_capacity(self.trail_length));
+        self.history
+            .push(VecDeque::with_capacity(self.trail_length));
     }
 
     pub fn record_history(&mut self) {
-        if self.trail_length == 0 { return; }
+        if self.trail_length == 0 {
+            return;
+        }
         for (i, pos) in self.positions.iter().enumerate() {
             let h = &mut self.history[i];
             if h.len() >= self.trail_length {
@@ -48,7 +51,7 @@ mod tests {
     fn test_add_body_integrity() {
         let mut system = SystemState::new(100);
         assert_eq!(system.masses.len(), 0);
-        
+
         system.add_body(1.0, DVec3::ZERO, DVec3::ZERO);
         assert_eq!(system.masses.len(), 1);
         assert_eq!(system.positions.len(), 1);
@@ -66,13 +69,14 @@ mod tests {
 
     #[test]
     fn test_history_recording() {
-        let mut system = SystemState::new();
+        let trail_length = 100;
+        let mut system = SystemState::new(trail_length);
         system.add_body(1.0, DVec3::ZERO, DVec3::ZERO);
-        
-        for _ in 0..(super::MAX_HISTORY + 10) {
+
+        for _ in 0..(trail_length + 10) {
             system.record_history();
         }
-        
-        assert_eq!(system.history[0].len(), super::MAX_HISTORY);
+
+        assert_eq!(system.history[0].len(), trail_length);
     }
 }

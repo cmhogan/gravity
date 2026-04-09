@@ -1,7 +1,7 @@
+use crate::system::SystemState;
 use glam::DVec3;
 use rand::RngExt;
 use rayon::prelude::*;
-use crate::system::SystemState;
 
 pub const G: f64 = 4.0 * std::f64::consts::PI * std::f64::consts::PI;
 pub const SOFTENING: f64 = 1e-3;
@@ -38,16 +38,12 @@ pub fn init_random_disk(n: usize, chaos: bool, trail_length: usize) -> SystemSta
             let theta = rng.random_range(0.0..2.0 * std::f64::consts::PI);
             let z = rng.random_range(-0.05..0.05);
 
-            let pos = DVec3::new(
-                r * theta.cos(),
-                r * theta.sin(),
-                z,
-            );
+            let pos = DVec3::new(r * theta.cos(), r * theta.sin(), z);
 
             // Circular orbital velocity around the central Sun
             let v_mag = (G * 1.0 / r).sqrt();
             let v_dir = DVec3::new(-theta.sin(), theta.cos(), 0.0);
-            
+
             // Add some random "jitter" to the velocity
             let jitter = DVec3::new(
                 rng.random_range(-0.5..0.5),
@@ -79,36 +75,36 @@ pub fn init_solar_system(trail_length: usize) -> SystemState {
 
     // Units: Solar Masses (M☉), Astronomical Units (AU), Years (yr)
     // G = 4π² in these units.
-    
+
     // Sun
     system.add_body(
-        1.0, 
-        DVec3::new(0.00512, 0.00214, -0.00011), 
-        DVec3::new(-0.0124, 0.0285, 0.0004)
+        1.0,
+        DVec3::new(0.00512, 0.00214, -0.00011),
+        DVec3::new(-0.0124, 0.0285, 0.0004),
     );
 
     // Mercury
     system.add_body(
         1.6601e-7,
         DVec3::new(-0.02308, -0.46298, -0.03572),
-        DVec3::new(8.2022, 0.0139, -0.7512)
+        DVec3::new(8.2022, 0.0139, -0.7512),
     );
 
     // Venus
     system.add_body(
         2.4478e-6,
         DVec3::new(0.23046, 0.68304, -0.00391),
-        DVec3::new(-7.0246, 2.3268, 0.4373)
+        DVec3::new(-7.0246, 2.3268, 0.4373),
     );
 
     // Earth
     system.add_body(
         3.0034e-6,
         DVec3::new(-0.95312, -0.30628, 0.00002),
-        DVec3::new(1.8203, -6.0064, 0.0004)
+        DVec3::new(1.8203, -6.0064, 0.0004),
     );
 
-    /* 
+    /*
     // MOON DATA (Commented out for future use)
     // Relative position to Earth: ~0.0025 AU
     // Relative velocity to Earth: ~0.21 AU/yr
@@ -123,49 +119,49 @@ pub fn init_solar_system(trail_length: usize) -> SystemState {
     system.add_body(
         3.2271e-7,
         DVec3::new(1.32942, -0.37732, -0.04051),
-        DVec3::new(1.5907, 5.3541, 0.0732)
+        DVec3::new(1.5907, 5.3541, 0.0732),
     );
 
     // Jupiter
     system.add_body(
         9.5479e-4,
         DVec3::new(-2.37598, 4.67486, 0.03373),
-        DVec3::new(-2.4918, -1.1206, 0.0604)
+        DVec3::new(-2.4918, -1.1206, 0.0604),
     );
 
     // Saturn
     system.add_body(
         2.8588e-4,
         DVec3::new(9.44468, 0.80889, -0.38993),
-        DVec3::new(-0.2843, 2.0251, -0.0239)
+        DVec3::new(-0.2843, 2.0251, -0.0239),
     );
 
     // Uranus
     system.add_body(
         4.3662e-5,
         DVec3::new(9.54231, 16.96732, -0.06071),
-        DVec3::new(-1.2620, 0.6369, 0.0187)
+        DVec3::new(-1.2620, 0.6369, 0.0187),
     );
 
     // Neptune
     system.add_body(
         5.1513e-5,
         DVec3::new(29.86106, 0.82011, -0.70503),
-        DVec3::new(-0.0389, 1.1522, -0.0228)
+        DVec3::new(-0.0389, 1.1522, -0.0228),
     );
 
     // Ceres
     system.add_body(
         4.7e-10,
         DVec3::new(0.2994, 2.6549, 0.0285),
-        DVec3::new(-3.8399, 0.1579, 0.7126)
+        DVec3::new(-3.8399, 0.1579, 0.7126),
     );
 
     // 1P/Halley
     system.add_body(
         2.2e-14,
         DVec3::new(-19.4597, 27.3682, -9.8885),
-        DVec3::new(0.1901, 0.0631, 0.0412)
+        DVec3::new(0.1901, 0.0631, 0.0412),
     );
 
     // Balance momentum: Adjust the entire system velocity so the net momentum is zero.
@@ -175,10 +171,10 @@ pub fn init_solar_system(trail_length: usize) -> SystemState {
         total_momentum += system.masses[i] * system.velocities[i];
         total_mass += system.masses[i];
     }
-    
+
     // Calculate the velocity of the system's barycenter
     let v_barycenter = total_momentum / total_mass;
-    
+
     // Subtract the barycenter velocity from every body to "freeze" the system center
     for i in 0..system.velocities.len() {
         system.velocities[i] -= v_barycenter;
@@ -217,7 +213,8 @@ pub fn update_accelerations(system: &mut SystemState) {
                         let pj = positions[j];
                         let mj = masses[j];
 
-                        let pj_xy = vsetq_lane_f64(pj.y, vsetq_lane_f64(pj.x, vdupq_n_f64(0.0), 0), 1);
+                        let pj_xy =
+                            vsetq_lane_f64(pj.y, vsetq_lane_f64(pj.x, vdupq_n_f64(0.0), 0), 1);
                         let diff_xy = vsubq_f64(pj_xy, pi_xy);
                         let diff_z = pj.z - pi.z;
 
@@ -323,8 +320,9 @@ mod tests {
         let n = 200;
         let system = init_random_disk(n, false, 100);
         assert_eq!(system.masses.len(), n + 1); // +1 for the Sun
-        
-        for i in 0..n {
+
+        // Skip the Sun at index 0
+        for i in 1..=n {
             assert!(system.masses[i] >= 1e-8 && system.masses[i] <= 1e-4);
             let r = system.positions[i].length();
             // Max r is roughly sqrt(3^2 + 0.1^2) approx 3.0016
@@ -355,9 +353,21 @@ mod tests {
         let angular_momentum_error = (final_angular_momentum - initial_angular_momentum).length();
 
         // Velocity Verlet should conserve energy reasonably well
-        assert!(energy_error < 1e-4, "Energy should be conserved, relative error: {}", energy_error);
-        assert!(linear_momentum_error < 1e-12, "Linear momentum should be conserved, error: {}", linear_momentum_error);
-        assert!(angular_momentum_error < 1e-12, "Angular momentum should be conserved, error: {}", angular_momentum_error);
+        assert!(
+            energy_error < 1e-4,
+            "Energy should be conserved, relative error: {}",
+            energy_error
+        );
+        assert!(
+            linear_momentum_error < 1e-12,
+            "Linear momentum should be conserved, error: {}",
+            linear_momentum_error
+        );
+        assert!(
+            angular_momentum_error < 1e-12,
+            "Angular momentum should be conserved, error: {}",
+            angular_momentum_error
+        );
     }
 
     #[test]
@@ -385,7 +395,11 @@ mod tests {
 
         // After 1 year, the Earth should be back to its starting position
         // With dt=0.0001, we expect decent accuracy
-        assert!(distance < 0.01, "Earth should be close to starting position after 1 year, distance was {}", distance);
+        assert!(
+            distance < 0.01,
+            "Earth should be close to starting position after 1 year, distance was {}",
+            distance
+        );
     }
 
     #[test]
@@ -420,8 +434,20 @@ mod tests {
         let linear_momentum_error = (final_linear_momentum - initial_linear_momentum).length();
         let angular_momentum_error = (final_angular_momentum - initial_angular_momentum).length();
 
-        assert!(energy_error < 1e-4, "Energy should be conserved within 1e-4, error: {}", energy_error);
-        assert!(linear_momentum_error < 1e-10, "Linear momentum should be conserved, error: {}", linear_momentum_error);
-        assert!(angular_momentum_error < 1e-10, "Angular momentum should be conserved, error: {}", angular_momentum_error);
+        assert!(
+            energy_error < 1e-4,
+            "Energy should be conserved within 1e-4, error: {}",
+            energy_error
+        );
+        assert!(
+            linear_momentum_error < 1e-10,
+            "Linear momentum should be conserved, error: {}",
+            linear_momentum_error
+        );
+        assert!(
+            angular_momentum_error < 1e-10,
+            "Angular momentum should be conserved, error: {}",
+            angular_momentum_error
+        );
     }
 }

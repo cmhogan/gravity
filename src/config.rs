@@ -20,6 +20,7 @@ pub struct ScenarioConfig {
     pub bodies: Vec<BodyConfig>,
 }
 
+#[allow(clippy::type_complexity)]
 pub fn load_scenario(
     path: &Path,
     trail_length: usize,

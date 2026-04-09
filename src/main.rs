@@ -1,8 +1,8 @@
 use clap::Parser;
 use glam::DVec3;
 use gravity::camera::Camera;
-use gravity::physics::{init_random_disk, init_solar_system, step, update_accelerations};
 use gravity::config::load_scenario;
+use gravity::physics::{init_random_disk, init_solar_system, step, update_accelerations};
 use pixels::{Pixels, SurfaceTexture};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -146,10 +146,10 @@ fn draw_grid(pixels: &mut Pixels, camera: &Camera) {
         let angle = (i as f64 * 45.0).to_radians();
         let start_pos = DVec3::ZERO;
         let end_pos = DVec3::new(35.0 * angle.cos(), 35.0 * angle.sin(), 0.0);
-        
+
         let (sx0, sy0) = camera.world_to_screen(start_pos, WIDTH, HEIGHT);
         let (sx1, sy1) = camera.world_to_screen(end_pos, WIDTH, HEIGHT);
-        
+
         draw_line(pixels, sx0, sy0, sx1, sy1, color);
     }
 }
@@ -167,31 +167,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         load_scenario(path, args.tails)?
     } else if args.bench {
         // Benchmark mode: Random cloud, no trails needed
-        (init_random_disk(args.bodies, true, 0), vec![[200, 200, 200, 255]; args.bodies + 1])
+        (
+            init_random_disk(args.bodies, true, 0),
+            vec![[200, 200, 200, 255]; args.bodies + 1],
+        )
     } else if args.demo {
-        (init_random_disk(args.bodies, args.chaos, args.tails), vec![[200, 200, 200, 255]; args.bodies + 1])
+        (
+            init_random_disk(args.bodies, args.chaos, args.tails),
+            vec![[200, 200, 200, 255]; args.bodies + 1],
+        )
     } else {
         // Default to solar system scenario file if it exists, otherwise use hardcoded fallback
         let default_path = PathBuf::from("scenarios/solar_system.toml");
         if default_path.exists() {
-             load_scenario(&default_path, args.tails)?
+            load_scenario(&default_path, args.tails)?
         } else {
-             (init_solar_system(args.tails), (0..11).map(|i| {
-                 match i {
-                    0 => [255, 255, 0, 255],     // Sun
-                    1 => [165, 165, 165, 255],   // Mercury
-                    2 => [255, 198, 107, 255],   // Venus
-                    3 => [100, 149, 237, 255],   // Earth
-                    4 => [255, 69, 0, 255],      // Mars
-                    5 => [210, 180, 140, 255],   // Jupiter
-                    6 => [238, 232, 170, 255],   // Saturn
-                    7 => [173, 216, 230, 255],   // Uranus
-                    8 => [65, 105, 225, 255],    // Neptune
-                    9 => [139, 69, 19, 255],     // Ceres
-                    10 => [224, 255, 255, 255],  // Halley
-                    _ => [200, 200, 200, 255],
-                 }
-             }).collect())
+            (
+                init_solar_system(args.tails),
+                (0..11)
+                    .map(|i| {
+                        match i {
+                            0 => [255, 255, 0, 255],    // Sun
+                            1 => [165, 165, 165, 255],  // Mercury
+                            2 => [255, 198, 107, 255],  // Venus
+                            3 => [100, 149, 237, 255],  // Earth
+                            4 => [255, 69, 0, 255],     // Mars
+                            5 => [210, 180, 140, 255],  // Jupiter
+                            6 => [238, 232, 170, 255],  // Saturn
+                            7 => [173, 216, 230, 255],  // Uranus
+                            8 => [65, 105, 225, 255],   // Neptune
+                            9 => [139, 69, 19, 255],    // Ceres
+                            10 => [224, 255, 255, 255], // Halley
+                            _ => [200, 200, 200, 255],
+                        }
+                    })
+                    .collect(),
+            )
         }
     };
 
@@ -200,15 +211,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.bench {
         let dt = 0.001;
         let steps = 1000;
-        
-        println!("Running benchmark with {} bodies for {} steps...", args.bodies, steps);
-        
+
+        println!(
+            "Running benchmark with {} bodies for {} steps...",
+            args.bodies, steps
+        );
+
         let start = Instant::now();
         for _ in 0..steps {
             step(&mut system, dt);
         }
         let total_time = start.elapsed();
-        
+
         let total_time_ms = total_time.as_secs_f64() * 1000.0;
         let mean_step_time_us = (total_time.as_secs_f64() * 1_000_000.0) / steps as f64;
         let n = args.bodies as f64;
@@ -221,10 +235,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Total Time:      {:.2} ms", total_time_ms);
         println!("Mean Step Time:  {:.2} μs", mean_step_time_us);
         println!("Throughput:      {:.2e} interactions/sec", throughput);
-        
+
         return Ok(());
     }
-    
+
     println!(
         "System initialized with {} bodies using {} threads",
         system.masses.len(),
@@ -268,13 +282,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 elwt.exit();
             }
             Event::WindowEvent {
-                event: WindowEvent::MouseWheel { delta, .. },
+                event:
+                    WindowEvent::MouseWheel {
+                        delta: MouseScrollDelta::LineDelta(_, y),
+                        ..
+                    },
                 ..
             } => {
-                if let MouseScrollDelta::LineDelta(_, y) = delta {
-                    let zoom_factor = if y > 0.0 { 1.1 } else { 0.9 };
-                    camera.zoom(zoom_factor);
-                }
+                let zoom_factor = if y > 0.0 { 1.1 } else { 0.9 };
+                camera.zoom(zoom_factor);
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
@@ -310,42 +326,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 modifiers = m.state();
             }
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { event: key_event, .. },
+                event:
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                physical_key: PhysicalKey::Code(code),
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    },
                 ..
-            } => {
-                if let KeyEvent {
-                    physical_key: PhysicalKey::Code(code),
-                    state: ElementState::Pressed,
-                    ..
-                } = key_event
-                {
-                    match code {
-                        KeyCode::Space => is_paused = !is_paused,
-                        KeyCode::KeyR => {
-                            camera.reset();
-                            steps_per_frame = 1;
-                        }
-                        KeyCode::KeyQ => elwt.exit(),
-                        KeyCode::KeyI => camera.zoom(2.0),
-                        KeyCode::KeyO => camera.zoom(0.5),
-                        KeyCode::BracketLeft => {
-                            let shift = modifiers.shift_key();
-                            let amount = if shift { 10 } else { 1 };
-                            if steps_per_frame > amount {
-                                steps_per_frame -= amount;
-                            } else {
-                                steps_per_frame = 1;
-                            }
-                        }
-                        KeyCode::BracketRight => {
-                            let shift = modifiers.shift_key();
-                            let amount = if shift { 10 } else { 1 };
-                            steps_per_frame += amount;
-                        }
-                        _ => {}
+            } => match code {
+                KeyCode::Space => is_paused = !is_paused,
+                KeyCode::KeyR => {
+                    camera.reset();
+                    steps_per_frame = 1;
+                }
+                KeyCode::KeyQ => elwt.exit(),
+                KeyCode::KeyI => camera.zoom(2.0),
+                KeyCode::KeyO => camera.zoom(0.5),
+                KeyCode::BracketLeft => {
+                    let shift = modifiers.shift_key();
+                    let amount = if shift { 10 } else { 1 };
+                    if steps_per_frame > amount {
+                        steps_per_frame -= amount;
+                    } else {
+                        steps_per_frame = 1;
                     }
                 }
-            }
+                KeyCode::BracketRight => {
+                    let shift = modifiers.shift_key();
+                    let amount = if shift { 10 } else { 1 };
+                    steps_per_frame += amount;
+                }
+                _ => {}
+            },
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..
@@ -356,7 +372,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if now.duration_since(last_fps_update).as_secs() >= 1 {
                     let fps = frame_count;
                     window.set_title(&format!(
-                        "Gravity Simulation | FPS: {} | Steps/Frame: {} | Year: {:.2}", 
+                        "Gravity Simulation | FPS: {} | Steps/Frame: {} | Year: {:.2}",
                         fps, steps_per_frame, total_years
                     ));
                     frame_count = 0;
@@ -377,8 +393,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 draw_grid(&mut pixels, &camera);
 
                 // Draw trails
-                for i in 0..system.masses.len() {
-                    let color = body_colors[i];
+                for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
                     // Dimmer version of the color for trails
                     let trail_color = [
                         (color[0] as f32 * 0.5) as u8,
@@ -392,22 +407,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     for &h_pos in history {
                         let curr_screen = camera.world_to_screen(h_pos, WIDTH, HEIGHT);
-                        
+
                         if let Some((x0, y0)) = prev_screen {
-                            draw_line(&mut pixels, x0, y0, curr_screen.0, curr_screen.1, trail_color);
+                            draw_line(
+                                &mut pixels,
+                                x0,
+                                y0,
+                                curr_screen.0,
+                                curr_screen.1,
+                                trail_color,
+                            );
                         }
                         prev_screen = Some(curr_screen);
                     }
                 }
 
                 // Draw bodies
-                for i in 0..system.masses.len() {
+                for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
                     let pos = system.positions[i];
                     let (sx, sy) = camera.world_to_screen(pos, WIDTH, HEIGHT);
 
                     // Schematic scaling: ensure sun and planets are visible
                     let radius = (system.masses[i].log10() + 8.0).max(1.0) * 1.5;
-                    let color = body_colors[i];
 
                     draw_circle(&mut pixels, sx, sy, radius as i32, color);
                 }
@@ -415,7 +436,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(err) = pixels.render() {
                     eprintln!("pixels.render() failed: {}", err);
                     elwt.exit();
-                    return;
                 }
             }
             Event::AboutToWait => {

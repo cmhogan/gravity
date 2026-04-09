@@ -29,7 +29,12 @@ impl Camera {
     }
 
     /// Convert world coordinates to pixel coordinates using 3D rotation and 2D projection
-    pub fn world_to_screen(&self, world_pos: DVec3, screen_width: u32, screen_height: u32) -> (i32, i32) {
+    pub fn world_to_screen(
+        &self,
+        world_pos: DVec3,
+        screen_width: u32,
+        screen_height: u32,
+    ) -> (i32, i32) {
         // Apply 3D rotation (Pitch: X-axis, Yaw: Y-axis)
         let rotation = DMat3::from_rotation_x(self.pitch) * DMat3::from_rotation_y(self.yaw);
         let rotated_pos = rotation * world_pos;
@@ -37,7 +42,7 @@ impl Camera {
         // Orthographic projection into 2D screen space
         let x = (rotated_pos.x - self.offset.x) * self.scale + (screen_width as f64 / 2.0);
         let y = (rotated_pos.y - self.offset.y) * self.scale + (screen_height as f64 / 2.0);
-        
+
         (x as i32, y as i32)
     }
 
@@ -73,7 +78,7 @@ mod tests {
         let mut camera = Camera::new(100.0);
         camera.zoom(2.0);
         assert_eq!(camera.scale, 200.0);
-        
+
         let (x, y) = camera.world_to_screen(DVec3::new(1.0, 0.0, 0.0), 800, 600);
         // (1.0 - 0.0) * 200.0 + 400.0 = 600.0
         assert_eq!(x, 600);
@@ -85,7 +90,7 @@ mod tests {
         let mut camera = Camera::new(100.0);
         // Pan 100 pixels to the right, 50 pixels down
         camera.pan(100.0, 50.0);
-        
+
         // Offset should be -1.0, -0.5
         assert_eq!(camera.offset.x, -1.0);
         assert_eq!(camera.offset.y, -0.5);
