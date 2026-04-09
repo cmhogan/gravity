@@ -157,15 +157,15 @@ pub fn init_solar_system(trail_length: usize) -> SystemState {
     // Ceres
     system.add_body(
         4.7e-10,
-        DVec3::new(0.29941, 2.65493, 0.02846),
+        DVec3::new(0.2994, 2.6549, 0.0285),
         DVec3::new(-3.8399, 0.1579, 0.7126)
     );
 
     // 1P/Halley
     system.add_body(
         2.2e-14,
-        DVec3::new(-25.77509, 0.50581, -7.19291),
-        DVec3::new(0.8119, 0.2310, 0.1858)
+        DVec3::new(-19.4597, 27.3682, -9.8885),
+        DVec3::new(0.1901, 0.0631, 0.0412)
     );
 
     // Balance momentum: Adjust the entire system velocity so the net momentum is zero.
