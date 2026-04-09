@@ -223,7 +223,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dt = 0.001; // ~8.7 hours per step
     let mut is_paused = false;
     let mut steps_per_frame = args.steps;
-    let mut total_years = 0.0;
+    let mut total_years = 2026.2685;
     let mut mouse_pos = (0.0, 0.0);
     let mut is_left_clicked = false;
     let mut is_right_clicked = false;
@@ -344,7 +344,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if now.duration_since(last_fps_update).as_secs() >= 1 {
                     let fps = frame_count;
                     window.set_title(&format!(
-                        "Gravity Simulation | FPS: {} | Steps/Frame: {} | Years: {:.2}", 
+                        "Gravity Simulation | FPS: {} | Steps/Frame: {} | Year: {:.2}", 
                         fps, steps_per_frame, total_years
                     ));
                     frame_count = 0;
