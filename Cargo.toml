@@ -1,0 +1,12 @@
+[package]
+name = "gravity"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pixels = "0.16.0"
+winit = "0.29"
+glam = { version = "0.25", features = ["scalar-math"] }
+rayon = "1.8"
+clap = { version = "4.4", features = ["derive"] }
+rand = "0.10.0"
