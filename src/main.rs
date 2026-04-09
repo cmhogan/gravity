@@ -2,7 +2,9 @@ use clap::Parser;
 use glam::DVec3;
 use gravity::camera::Camera;
 use gravity::physics::{init_random_disk, init_solar_system, step, update_accelerations};
+use gravity::config::load_scenario;
 use pixels::{Pixels, SurfaceTexture};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -45,7 +47,11 @@ struct Args {
     /// Number of physics steps to perform per frame (default 1)
     #[arg(short, long, default_value_t = 1)]
     steps: usize,
-    }
+
+    /// Path to a scenario file (.toml)
+    #[arg(long)]
+    scenario: Option<PathBuf>,
+}
 /// Clears the pixel buffer by zeroing it (black screen)
 fn clear_screen(pixels: &mut Pixels) {
     let frame = pixels.frame_mut();
@@ -148,23 +154,6 @@ fn draw_grid(pixels: &mut Pixels, camera: &Camera) {
     }
 }
 
-fn get_body_color(index: usize) -> [u8; 4] {
-    match index {
-        0 => [255, 255, 0, 255],     // Sun: Yellow
-        1 => [165, 165, 165, 255],   // Mercury: Grey
-        2 => [255, 198, 107, 255],   // Venus: Pale Yellow
-        3 => [100, 149, 237, 255],   // Earth: Cornflower Blue
-        4 => [255, 69, 0, 255],     // Mars: Red-Orange
-        5 => [210, 180, 140, 255],   // Jupiter: Tan/Brown
-        6 => [238, 232, 170, 255],   // Saturn: Pale Gold
-        7 => [173, 216, 230, 255],   // Uranus: Light Blue
-        8 => [65, 105, 225, 255],    // Neptune: Royal Blue
-        9 => [224, 255, 255, 255],   // Halley: Light Cyan
-        10 => [139, 69, 19, 255],    // Ceres: Saddle Brown
-        _ => [200, 200, 200, 255],   // Others: Greyish
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
@@ -174,13 +163,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_global()
         .unwrap_or_else(|_| println!("Rayon global thread pool already initialized"));
 
-    let mut system = if args.bench {
+    let (mut system, body_colors) = if let Some(path) = &args.scenario {
+        load_scenario(path, args.tails)?
+    } else if args.bench {
         // Benchmark mode: Random cloud, no trails needed
-        init_random_disk(args.bodies, true, 0)
+        (init_random_disk(args.bodies, true, 0), vec![[200, 200, 200, 255]; args.bodies + 1])
     } else if args.demo {
-        init_random_disk(args.bodies, args.chaos, args.tails)
+        (init_random_disk(args.bodies, args.chaos, args.tails), vec![[200, 200, 200, 255]; args.bodies + 1])
     } else {
-        init_solar_system(args.tails)
+        // Default to solar system scenario file if it exists, otherwise use hardcoded fallback
+        let default_path = PathBuf::from("scenarios/solar_system.toml");
+        if default_path.exists() {
+             load_scenario(&default_path, args.tails)?
+        } else {
+             (init_solar_system(args.tails), (0..11).map(|i| {
+                 match i {
+                    0 => [255, 255, 0, 255],     // Sun
+                    1 => [165, 165, 165, 255],   // Mercury
+                    2 => [255, 198, 107, 255],   // Venus
+                    3 => [100, 149, 237, 255],   // Earth
+                    4 => [255, 69, 0, 255],      // Mars
+                    5 => [210, 180, 140, 255],   // Jupiter
+                    6 => [238, 232, 170, 255],   // Saturn
+                    7 => [173, 216, 230, 255],   // Uranus
+                    8 => [65, 105, 225, 255],    // Neptune
+                    9 => [139, 69, 19, 255],     // Ceres
+                    10 => [224, 255, 255, 255],  // Halley
+                    _ => [200, 200, 200, 255],
+                 }
+             }).collect())
+        }
     };
 
     update_accelerations(&mut system);
@@ -366,7 +378,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Draw trails
                 for i in 0..system.masses.len() {
-                    let color = get_body_color(i);
+                    let color = body_colors[i];
                     // Dimmer version of the color for trails
                     let trail_color = [
                         (color[0] as f32 * 0.5) as u8,
@@ -395,7 +407,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // Schematic scaling: ensure sun and planets are visible
                     let radius = (system.masses[i].log10() + 8.0).max(1.0) * 1.5;
-                    let color = get_body_color(i);
+                    let color = body_colors[i];
 
                     draw_circle(&mut pixels, sx, sy, radius as i32, color);
                 }

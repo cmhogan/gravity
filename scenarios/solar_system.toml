@@ -1,0 +1,78 @@
+name = "Solar System (April 2026)"
+
+[[bodies]]
+name = "Sun"
+mass = 1.0
+position = [0.00512, 0.00214, -0.00011]
+velocity = [-0.0124, 0.0285, 0.0004]
+color = [255, 255, 0, 255]
+
+[[bodies]]
+name = "Mercury"
+mass = 1.6601e-7
+position = [-0.02308, -0.46298, -0.03572]
+velocity = [8.2022, 0.0139, -0.7512]
+color = [165, 165, 165, 255]
+
+[[bodies]]
+name = "Venus"
+mass = 2.4478e-6
+position = [0.23046, 0.68304, -0.00391]
+velocity = [-7.0246, 2.3268, 0.4373]
+color = [255, 198, 107, 255]
+
+[[bodies]]
+name = "Earth"
+mass = 3.0034e-6
+position = [-0.95312, -0.30628, 0.00002]
+velocity = [1.8203, -6.0064, 0.0004]
+color = [100, 149, 237, 255]
+
+[[bodies]]
+name = "Mars"
+mass = 3.2271e-7
+position = [1.32942, -0.37732, -0.04051]
+velocity = [1.5907, 5.3541, 0.0732]
+color = [255, 69, 0, 255]
+
+[[bodies]]
+name = "Jupiter"
+mass = 9.5479e-4
+position = [-2.37598, 4.67486, 0.03373]
+velocity = [-2.4918, -1.1206, 0.0604]
+color = [210, 180, 140, 255]
+
+[[bodies]]
+name = "Saturn"
+mass = 2.8588e-4
+position = [9.44468, 0.80889, -0.38993]
+velocity = [-0.2843, 2.0251, -0.0239]
+color = [238, 232, 170, 255]
+
+[[bodies]]
+name = "Uranus"
+mass = 4.3662e-5
+position = [9.54231, 16.96732, -0.06071]
+velocity = [-1.2620, 0.6369, 0.0187]
+color = [173, 216, 230, 255]
+
+[[bodies]]
+name = "Neptune"
+mass = 5.1513e-5
+position = [29.86106, 0.82011, -0.70503]
+velocity = [-0.0389, 1.1522, -0.0228]
+color = [65, 105, 225, 255]
+
+[[bodies]]
+name = "Ceres"
+mass = 4.7e-10
+position = [0.2994, 2.6549, 0.0285]
+velocity = [-3.8399, 0.1579, 0.7126]
+color = [139, 69, 19, 255]
+
+[[bodies]]
+name = "1P/Halley"
+mass = 2.2e-14
+position = [-19.4597, 27.3682, -9.8885]
+velocity = [0.1901, 0.0631, 0.0412]
+color = [224, 255, 255, 255]

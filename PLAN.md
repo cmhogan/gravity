@@ -50,11 +50,22 @@ This plan outlines the implementation of a high-precision, low-level orbital mec
 
 ## Phase 9: Protostellar Disk Demo
 - [x] **Task 9.1: CLI --demo Flag** [BLOCKER]
-    - **Description:** Update `Args` in `main.rs` to include a `--demo` boolean flag.
-    - **Model:** Fast
 - [x] **Task 9.2: Random Disk Initialization** [BLOCKER]
-    - **Description:** Implement a `init_random_disk(n: usize)` helper in `src/physics.rs` that populates `SystemState` with $N$ bodies in a random distribution.
-    - **Model:** Fast
 - [x] **Task 9.3: Demo Visualization Integration** [PARALLEL OK]
-    - **Description:** When `--demo` is passed, initialize the simulation with the random disk and launch the `winit` window with a zoomed-out camera.
+
+## Phase 10: Data-Driven Scenarios
+- [ ] **Task 10.1: Serialization Setup (Serde + TOML)** [BLOCKER]
+    - **Description:** Add `serde`, `serde_derive`, and `toml` to `Cargo.toml`.
+    - **Model:** Fast
+- [ ] **Task 10.2: Define Config Data Structures** [BLOCKER]
+    - **Description:** Create a new `config.rs` or update `system.rs` with `BodyConfig` and `ScenarioConfig` structs that match the TOML format.
+    - **Model:** Fast
+- [ ] **Task 10.3: Implement Scenario Loader** [BLOCKER]
+    - **Description:** Implement a loader function that reads a `.toml` file and populates the `SystemState`. Include the momentum balancing step in the loader.
+    - **Model:** Strong
+- [ ] **Task 10.4: Create Scenario Files** [PARALLEL OK]
+    - **Description:** Create `scenarios/solar_system.toml` using the current JPL state vectors. Move hardcoded data out of `physics.rs`.
+    - **Model:** Fast
+- [ ] **Task 10.5: CLI --scenario Flag** [BLOCKER]
+    - **Description:** Update CLI to accept a path to a scenario file (e.g., `cargo run -- --scenario scenarios/solar_system.toml`).
     - **Model:** Fast
