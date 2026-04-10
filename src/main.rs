@@ -540,7 +540,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Event::WindowEvent {
-            event: WindowEvent::ModifiersChanged(m) ,
+            event: WindowEvent::ModifiersChanged(m),
             ..
         } => {
             modifiers = m.state();
