@@ -1,8 +1,11 @@
 use clap::Parser;
 use glam::DVec3;
 use gravity::camera::Camera;
-use gravity::config::load_scenario;
-use gravity::physics::{init_random_disk, init_solar_system, step, update_accelerations};
+use gravity::config::load_scenario_config;
+use gravity::physics::{
+    add_galaxy, balance_momentum, init_random_disk, init_solar_system, step, update_accelerations,
+};
+use gravity::system::SystemState;
 use pixels::{Pixels, SurfaceTexture};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -164,7 +167,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| println!("Rayon global thread pool already initialized"));
 
     let (mut system, body_colors) = if let Some(path) = &args.scenario {
-        load_scenario(path, args.tails)?
+        let config = load_scenario_config(path)?;
+        let mut system = SystemState::new(args.tails);
+        let mut colors = Vec::new();
+
+        if let Some(bodies) = config.bodies {
+            for body in bodies {
+                system.add_body(
+                    body.mass,
+                    DVec3::from_array(body.position),
+                    DVec3::from_array(body.velocity),
+                );
+                colors.push(body.color);
+            }
+        }
+
+        if let Some(galaxies) = config.galaxies {
+            for galaxy in galaxies {
+                add_galaxy(&mut system, &galaxy, &mut colors);
+            }
+        }
+
+        balance_momentum(&mut system);
+        (system, colors)
     } else if args.bench {
         // Benchmark mode: Random cloud, no trails needed
         (
@@ -180,7 +205,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Default to solar system scenario file if it exists, otherwise use hardcoded fallback
         let default_path = PathBuf::from("scenarios/solar_system.toml");
         if default_path.exists() {
-            load_scenario(&default_path, args.tails)?
+            let config = load_scenario_config(&default_path)?;
+            let mut system = SystemState::new(args.tails);
+            let mut colors = Vec::new();
+            if let Some(bodies) = config.bodies {
+                for body in bodies {
+                    system.add_body(
+                        body.mass,
+                        DVec3::from_array(body.position),
+                        DVec3::from_array(body.velocity),
+                    );
+                    colors.push(body.color);
+                }
+            }
+            balance_momentum(&mut system);
+            (system, colors)
         } else {
             (
                 init_solar_system(args.tails),

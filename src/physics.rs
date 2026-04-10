@@ -1,5 +1,6 @@
+use crate::config::GalaxyConfig;
 use crate::system::SystemState;
-use glam::DVec3;
+use glam::{DMat3, DVec3};
 use rand::RngExt;
 use rayon::prelude::*;
 
@@ -56,17 +57,59 @@ pub fn init_random_disk(n: usize, chaos: bool, trail_length: usize) -> SystemSta
         }
     }
 
-    // Balance momentum: Adjust the Sun's velocity so the net momentum is zero.
-    // This prevents the entire system from drifting over long durations.
-    let mut total_momentum = DVec3::ZERO;
-    // Skip index 0 (the Sun) for the initial sum, though it starts at (0,0,0) anyway.
-    for i in 1..system.masses.len() {
-        total_momentum += system.masses[i] * system.velocities[i];
-    }
-    // Set Sun's velocity to counteract the planets: P_sun = -P_planets
-    system.velocities[0] = -total_momentum / system.masses[0];
+    balance_momentum(&mut system);
 
     system
+}
+
+/// Balance the linear momentum of the system by adjusting the velocity of all bodies
+pub fn balance_momentum(system: &mut SystemState) {
+    let mut total_momentum = DVec3::ZERO;
+    let mut total_mass = 0.0;
+    for i in 0..system.masses.len() {
+        total_momentum += system.masses[i] * system.velocities[i];
+        total_mass += system.masses[i];
+    }
+
+    if total_mass > 0.0 {
+        let v_barycenter = total_momentum / total_mass;
+        for i in 0..system.velocities.len() {
+            system.velocities[i] -= v_barycenter;
+        }
+    }
+}
+
+/// Add a procedurally generated galaxy to the system
+pub fn add_galaxy(system: &mut SystemState, config: &GalaxyConfig, colors: &mut Vec<[u8; 4]>) {
+    let mut rng = rand::rng();
+    let center = DVec3::from_array(config.center);
+    let velocity = DVec3::from_array(config.velocity);
+    let rotation = DMat3::from_rotation_y(config.tilt[1].to_radians())
+        * DMat3::from_rotation_x(config.tilt[0].to_radians());
+
+    // Add central core (Black Hole)
+    system.add_body(config.core_mass, center, velocity);
+    colors.push(config.color);
+
+    for _ in 0..config.num_stars {
+        let r = rng.random_range(config.radius_range[0]..config.radius_range[1]);
+        let theta = rng.random_range(0.0..2.0 * std::f64::consts::PI);
+        let z = rng.random_range(-0.02 * r..0.02 * r); // Thin disk proportional to radius
+
+        // Local position and velocity in the galaxy's orbital plane
+        let local_pos = DVec3::new(r * theta.cos(), r * theta.sin(), z);
+        let v_mag = (G * config.core_mass / r).sqrt();
+        let local_vel = DVec3::new(-theta.sin() * v_mag, theta.cos() * v_mag, 0.0);
+
+        // Apply rotation and translation to match the galaxy's state in the world
+        let world_pos = center + rotation * local_pos;
+        let world_vel = velocity + rotation * local_vel;
+
+        // Mass: very small, so they don't significantly affect the cores
+        let star_mass = 1e-10;
+        system.add_body(star_mass, world_pos, world_vel);
+        colors.push(config.color);
+    }
 }
 
 /// Initialize the solar system with real-time NASA JPL State Vectors (April 2026)
