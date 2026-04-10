@@ -2,7 +2,7 @@ name = "The Great Galactic Collision"
 
 [[galaxies]]
 name = "Primary Spiral"
-num_stars = 3200
+num_stars = 6400
 core_mass = 1.0
 radius_range = [1.0, 10.0]
 center = [-20.0, 0.0, 0.0]
@@ -12,7 +12,7 @@ color = [150, 200, 255, 255]
 
 [[galaxies]]
 name = "Intruder Dwarf"
-num_stars = 1600
+num_stars = 3200
 core_mass = 0.5
 radius_range = [0.5, 6.0]
 center = [20.0, 10.0, 0.0]
