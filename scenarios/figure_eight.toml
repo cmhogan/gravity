@@ -1,0 +1,22 @@
+name = "Three-Body Figure Eight"
+
+[[bodies]]
+name = "Alpha"
+mass = 0.0253303
+position = [0.97000436, -0.24308753, 0.0]
+velocity = [0.466203685, 0.43236573, 0.0]
+color = [255, 100, 100, 255]
+
+[[bodies]]
+name = "Beta"
+mass = 0.0253303
+position = [-0.97000436, 0.24308753, 0.0]
+velocity = [0.466203685, 0.43236573, 0.0]
+color = [100, 255, 100, 255]
+
+[[bodies]]
+name = "Gamma"
+mass = 0.0253303
+position = [0.0, 0.0, 0.0]
+velocity = [-0.93240737, -0.86473146, 0.0]
+color = [100, 100, 255, 255]
