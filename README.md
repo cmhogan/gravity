@@ -87,3 +87,4 @@ The simulation uses normalized units to maintain floating-point precision:
 - **Gravitational Constant:** $G = 4\pi^2$
 
 Softening ($\epsilon = 10^{-3}$) is applied to prevent numerical singularities during close encounters.
+\n## ⚖️ License\n\nThis project is licensed under the BSD 3-Clause License. See the [LICENSE](LICENSE) file for details.

@@ -2,6 +2,8 @@
 name = "gravity"
 version = "0.1.0"
 edition = "2021"
+authors = ["Chad Hogan <chad.hogan@gmail.com>"]
+license = "BSD-3-Clause"
 
 [dependencies]
 pixels = "0.16.0"
