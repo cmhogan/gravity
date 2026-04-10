@@ -222,6 +222,7 @@ fn draw_circle(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_line_raw(
     frame: &mut [u8],
     mut x0: i32,
@@ -261,6 +262,7 @@ fn draw_line_raw(
 }
 
 /// Draws a line using Bresenham's algorithm
+#[allow(clippy::too_many_arguments)]
 fn draw_line(
     pixels: &mut Pixels,
     x0: i32,
