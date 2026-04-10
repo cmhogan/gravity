@@ -56,6 +56,19 @@ Stress-test your M2 CPU to see the raw throughput (interactions per second).
 cargo run --release -- --bench --bodies 1000 --threads 8
 ```
 
+### 🎬 Movie Mode (Headless Rendering)
+Gravity can render high-resolution frames to disk for creating cinematic movies. This mode skips window creation and runs at maximum CPU speed.
+
+```bash
+# Render 600 frames of a galaxy collision at 1080p
+cargo run --release -- --scenario scenarios/galaxy_collision.toml --render --width 1920 --height 1080 --limit 600 --steps 10
+```
+
+To stitch the frames into an MP4 movie (requires [FFmpeg](https://ffmpeg.org/)):
+```bash
+ffmpeg -framerate 60 -i output/frame_%04d.png -c:v libx264 -pix_fmt yuv420p movie.mp4
+```
+
 ## 📂 Project Structure
 
 - `src/main.rs`: Entry point, CLI, and event loop.

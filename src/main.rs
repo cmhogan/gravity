@@ -7,7 +7,8 @@ use gravity::physics::{
 };
 use gravity::system::SystemState;
 use pixels::{Pixels, SurfaceTexture};
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -16,9 +17,6 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::WindowBuilder,
 };
-
-const WIDTH: u32 = 800;
-const HEIGHT: u32 = 800;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -54,30 +52,148 @@ struct Args {
     /// Path to a scenario file (.toml)
     #[arg(long)]
     scenario: Option<PathBuf>,
-}
-/// Clears the pixel buffer by zeroing it (black screen)
-fn clear_screen(pixels: &mut Pixels) {
-    let frame = pixels.frame_mut();
-    for pixel in frame.chunks_exact_mut(4) {
-        pixel.copy_from_slice(&[0, 0, 0, 255]); // RGBA: Black, fully opaque
-    }
+
+    /// If true, enables movie rendering mode (headless)
+    #[arg(long, default_value_t = false)]
+    render: bool,
+
+    /// Width of the output image/window (default 800)
+    #[arg(long, default_value_t = 800)]
+    width: u32,
+
+    /// Height of the output image/window (default 800)
+    #[arg(long, default_value_t = 800)]
+    height: u32,
+
+    /// Directory for movie frame output
+    #[arg(long, default_value = "output")]
+    output: String,
+
+    /// Maximum number of frames to render (default 600)
+    #[arg(long, default_value_t = 600)]
+    limit: usize,
 }
 
-/// Draws a filled circle directly into the pixel buffer
-fn draw_circle(pixels: &mut Pixels, center_x: i32, center_y: i32, radius: i32, color: [u8; 4]) {
+fn render_mode(
+    args: &Args,
+    mut system: SystemState,
+    body_colors: Vec<[u8; 4]>,
+    mut camera: Camera,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Ensure output directory exists
+    if !Path::new(&args.output).exists() {
+        fs::create_dir_all(&args.output)?;
+    }
+
+    println!(
+        "Starting headless render: {}x{} @ {} frames",
+        args.width, args.height, args.limit
+    );
+
+    // Initial camera fit
+    camera.fit_to_system(&system, args.width, args.height);
+
+    let mut frame_buffer = vec![0u8; (args.width * args.height * 4) as usize];
+    let dt = 0.001;
+    let mut total_years = 2026.2685;
+
+    for frame_idx in 0..args.limit {
+        for _ in 0..args.steps {
+            step(&mut system, dt);
+            system.record_history();
+            total_years += dt;
+        }
+
+        // Clear buffer
+        for pixel in frame_buffer.chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[0, 0, 0, 255]);
+        }
+
+        draw_grid_raw(&mut frame_buffer, &camera, args.width, args.height);
+
+        // Draw trails
+        for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
+            let trail_color = [
+                (color[0] as f32 * 0.5) as u8,
+                (color[1] as f32 * 0.5) as u8,
+                (color[2] as f32 * 0.5) as u8,
+                255,
+            ];
+            let history = &system.history[i];
+            let mut prev_screen: Option<(i32, i32)> = None;
+            for &h_pos in history {
+                let curr_screen = camera.world_to_screen(h_pos, args.width, args.height);
+                if let Some((x0, y0)) = prev_screen {
+                    draw_line_raw(
+                        &mut frame_buffer,
+                        x0,
+                        y0,
+                        curr_screen.0,
+                        curr_screen.1,
+                        trail_color,
+                        args.width,
+                        args.height,
+                    );
+                }
+                prev_screen = Some(curr_screen);
+            }
+        }
+
+        // Draw bodies
+        for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
+            let pos = system.positions[i];
+            let (sx, sy) = camera.world_to_screen(pos, args.width, args.height);
+            let radius = (system.masses[i].log10() + 8.0).max(1.0) * 1.5;
+            draw_circle_raw(
+                &mut frame_buffer,
+                sx,
+                sy,
+                radius as i32,
+                color,
+                args.width,
+                args.height,
+            );
+        }
+
+        // Save to disk
+        let image = image::RgbaImage::from_raw(args.width, args.height, frame_buffer.clone())
+            .ok_or("Failed to create RgbaImage")?;
+        let path = format!("{}/frame_{:04}.png", args.output, frame_idx);
+        image.save(path)?;
+
+        if frame_idx % 10 == 0 {
+            println!(
+                "Rendered frame {}/{} [Year: {:.2}]",
+                frame_idx, args.limit, total_years
+            );
+        }
+    }
+
+    println!("Render complete! Frames saved to: {}", args.output);
+    Ok(())
+}
+
+fn draw_circle_raw(
+    frame: &mut [u8],
+    center_x: i32,
+    center_y: i32,
+    radius: i32,
+    color: [u8; 4],
+    width: u32,
+    height: u32,
+) {
     if radius <= 0 {
         return;
     }
 
-    let frame = pixels.frame_mut();
     for y in -radius..=radius {
         for x in -radius..=radius {
             if x * x + y * y <= radius * radius {
                 let px = center_x + x;
                 let py = center_y + y;
 
-                if px >= 0 && px < WIDTH as i32 && py >= 0 && py < HEIGHT as i32 {
-                    let index = (py as usize * WIDTH as usize + px as usize) * 4;
+                if px >= 0 && px < width as i32 && py >= 0 && py < height as i32 {
+                    let index = (py as usize * width as usize + px as usize) * 4;
                     frame[index..index + 4].copy_from_slice(&color);
                 }
             }
@@ -85,19 +201,46 @@ fn draw_circle(pixels: &mut Pixels, center_x: i32, center_y: i32, radius: i32, c
     }
 }
 
-/// Draws a line using Bresenham's algorithm
-fn draw_line(pixels: &mut Pixels, mut x0: i32, mut y0: i32, x1: i32, y1: i32, color: [u8; 4]) {
+/// Draws a filled circle directly into the pixel buffer
+fn draw_circle(
+    pixels: &mut Pixels,
+    center_x: i32,
+    center_y: i32,
+    radius: i32,
+    color: [u8; 4],
+    width: u32,
+    height: u32,
+) {
+    draw_circle_raw(
+        pixels.frame_mut(),
+        center_x,
+        center_y,
+        radius,
+        color,
+        width,
+        height,
+    );
+}
+
+fn draw_line_raw(
+    frame: &mut [u8],
+    mut x0: i32,
+    mut y0: i32,
+    x1: i32,
+    y1: i32,
+    color: [u8; 4],
+    width: u32,
+    height: u32,
+) {
     let dx = (x1 - x0).abs();
     let dy = (y1 - y0).abs();
     let sx = if x0 < x1 { 1 } else { -1 };
     let sy = if y0 < y1 { 1 } else { -1 };
     let mut err = dx - dy;
 
-    let frame = pixels.frame_mut();
-
     loop {
-        if x0 >= 0 && x0 < WIDTH as i32 && y0 >= 0 && y0 < HEIGHT as i32 {
-            let index = (y0 as usize * WIDTH as usize + x0 as usize) * 4;
+        if x0 >= 0 && x0 < width as i32 && y0 >= 0 && y0 < height as i32 {
+            let index = (y0 as usize * width as usize + x0 as usize) * 4;
             frame[index..index + 4].copy_from_slice(&color);
         }
 
@@ -117,8 +260,21 @@ fn draw_line(pixels: &mut Pixels, mut x0: i32, mut y0: i32, x1: i32, y1: i32, co
     }
 }
 
-/// Draws a dim ecliptic grid overlay on the z=0 plane
-fn draw_grid(pixels: &mut Pixels, camera: &Camera) {
+/// Draws a line using Bresenham's algorithm
+fn draw_line(
+    pixels: &mut Pixels,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    color: [u8; 4],
+    width: u32,
+    height: u32,
+) {
+    draw_line_raw(pixels.frame_mut(), x0, y0, x1, y1, color, width, height);
+}
+
+fn draw_grid_raw(frame: &mut [u8], camera: &Camera, width: u32, height: u32) {
     let color = [40, 40, 40, 255]; // Dim dark gray
 
     // Concentric circles: every 1 AU up to 10 AU, then every 5 AU up to 35 AU
@@ -136,9 +292,18 @@ fn draw_grid(pixels: &mut Pixels, camera: &Camera) {
         for j in 0..=segments {
             let angle = (j as f64 / segments as f64) * 2.0 * std::f64::consts::PI;
             let world_pos = DVec3::new(radius * angle.cos(), radius * angle.sin(), 0.0);
-            let curr_screen = camera.world_to_screen(world_pos, WIDTH, HEIGHT);
+            let curr_screen = camera.world_to_screen(world_pos, width, height);
             if let Some((x0, y0)) = prev_screen {
-                draw_line(pixels, x0, y0, curr_screen.0, curr_screen.1, color);
+                draw_line_raw(
+                    frame,
+                    x0,
+                    y0,
+                    curr_screen.0,
+                    curr_screen.1,
+                    color,
+                    width,
+                    height,
+                );
             }
             prev_screen = Some(curr_screen);
         }
@@ -150,10 +315,23 @@ fn draw_grid(pixels: &mut Pixels, camera: &Camera) {
         let start_pos = DVec3::ZERO;
         let end_pos = DVec3::new(35.0 * angle.cos(), 35.0 * angle.sin(), 0.0);
 
-        let (sx0, sy0) = camera.world_to_screen(start_pos, WIDTH, HEIGHT);
-        let (sx1, sy1) = camera.world_to_screen(end_pos, WIDTH, HEIGHT);
+        let (sx0, sy0) = camera.world_to_screen(start_pos, width, height);
+        let (sx1, sy1) = camera.world_to_screen(end_pos, width, height);
 
-        draw_line(pixels, sx0, sy0, sx1, sy1, color);
+        draw_line_raw(frame, sx0, sy0, sx1, sy1, color, width, height);
+    }
+}
+
+/// Draws a dim ecliptic grid overlay on the z=0 plane
+fn draw_grid(pixels: &mut Pixels, camera: &Camera, width: u32, height: u32) {
+    draw_grid_raw(pixels.frame_mut(), camera, width, height);
+}
+
+/// Clears the pixel buffer by zeroing it (black screen)
+fn clear_screen(pixels: &mut Pixels) {
+    let frame = pixels.frame_mut();
+    for pixel in frame.chunks_exact_mut(4) {
+        pixel.copy_from_slice(&[0, 0, 0, 255]); // RGBA: Black, fully opaque
     }
 }
 
@@ -224,21 +402,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             (
                 init_solar_system(args.tails),
                 (0..11)
-                    .map(|i| {
-                        match i {
-                            0 => [255, 255, 0, 255],    // Sun
-                            1 => [165, 165, 165, 255],  // Mercury
-                            2 => [255, 198, 107, 255],  // Venus
-                            3 => [100, 149, 237, 255],  // Earth
-                            4 => [255, 69, 0, 255],     // Mars
-                            5 => [210, 180, 140, 255],  // Jupiter
-                            6 => [238, 232, 170, 255],  // Saturn
-                            7 => [173, 216, 230, 255],  // Uranus
-                            8 => [65, 105, 225, 255],   // Neptune
-                            9 => [139, 69, 19, 255],    // Ceres
-                            10 => [224, 255, 255, 255], // Halley
-                            _ => [200, 200, 200, 255],
-                        }
+                    .map(|i| match i {
+                        0 => [255, 255, 0, 255],    // Sun
+                        1 => [165, 165, 165, 255],  // Mercury
+                        2 => [255, 198, 107, 255],  // Venus
+                        3 => [100, 149, 237, 255],  // Earth
+                        4 => [255, 69, 0, 255],     // Mars
+                        5 => [210, 180, 140, 255],  // Jupiter
+                        6 => [238, 232, 170, 255],  // Saturn
+                        7 => [173, 216, 230, 255],  // Uranus
+                        8 => [65, 105, 225, 255],   // Neptune
+                        9 => [139, 69, 19, 255],    // Ceres
+                        10 => [224, 255, 255, 255], // Halley
+                        _ => [200, 200, 200, 255],
                     })
                     .collect(),
             )
@@ -246,6 +422,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     update_accelerations(&mut system);
+
+    let mut camera = Camera::new(if args.demo { 100.0 } else { 200.0 });
+    camera.fit_to_system(&system, args.width, args.height);
 
     if args.bench {
         let dt = 0.001;
@@ -278,13 +457,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    if args.render {
+        return render_mode(&args, system, body_colors, camera);
+    }
+
     println!(
         "System initialized with {} bodies using {} threads",
         system.masses.len(),
         args.threads
     );
 
-    let mut camera = Camera::new(if args.demo { 100.0 } else { 200.0 });
     let dt = 0.001; // ~8.7 hours per step
     let mut is_paused = false;
     let mut steps_per_frame = args.steps;
@@ -298,7 +480,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = Arc::new(
         WindowBuilder::new()
             .with_title("Gravity Simulation")
-            .with_inner_size(winit::dpi::LogicalSize::new(WIDTH, HEIGHT))
+            .with_inner_size(winit::dpi::LogicalSize::new(args.width, args.height))
             .build(&event_loop)?,
     );
 
@@ -306,182 +488,190 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_size = window.inner_size();
         let surface_texture =
             SurfaceTexture::new(window_size.width, window_size.height, Arc::clone(&window));
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+        Pixels::new(args.width, args.height, surface_texture)?
     };
 
     let mut frame_count = 0;
     let mut last_fps_update = Instant::now();
 
-    event_loop.run(move |event, elwt| {
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {
-                elwt.exit();
+    event_loop.run(move |event, elwt| match event {
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => {
+            elwt.exit();
+        }
+        Event::WindowEvent {
+            event:
+                WindowEvent::MouseWheel {
+                    delta: MouseScrollDelta::LineDelta(_, y),
+                    ..
+                },
+            ..
+        } => {
+            let zoom_factor = if y > 0.0 { 1.1 } else { 0.9 };
+            camera.zoom(zoom_factor);
+        }
+        Event::WindowEvent {
+            event: WindowEvent::CursorMoved { position, .. },
+            ..
+        } => {
+            let new_mouse_pos = (position.x, position.y);
+            if is_left_clicked {
+                let dx = new_mouse_pos.0 - mouse_pos.0;
+                let dy = new_mouse_pos.1 - mouse_pos.1;
+                camera.pan(dx, dy);
             }
-            Event::WindowEvent {
-                event:
-                    WindowEvent::MouseWheel {
-                        delta: MouseScrollDelta::LineDelta(_, y),
-                        ..
-                    },
-                ..
-            } => {
-                let zoom_factor = if y > 0.0 { 1.1 } else { 0.9 };
-                camera.zoom(zoom_factor);
+            if is_right_clicked {
+                let dx = new_mouse_pos.0 - mouse_pos.0;
+                let dy = new_mouse_pos.1 - mouse_pos.1;
+                camera.rotate(dy * 0.005, dx * 0.005);
             }
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => {
-                let new_mouse_pos = (position.x, position.y);
-                if is_left_clicked {
-                    let dx = new_mouse_pos.0 - mouse_pos.0;
-                    let dy = new_mouse_pos.1 - mouse_pos.1;
-                    camera.pan(dx, dy);
-                }
-                if is_right_clicked {
-                    let dx = new_mouse_pos.0 - mouse_pos.0;
-                    let dy = new_mouse_pos.1 - mouse_pos.1;
-                    camera.rotate(dy * 0.005, dx * 0.005);
-                }
-                mouse_pos = new_mouse_pos;
+            mouse_pos = new_mouse_pos;
+        }
+        Event::WindowEvent {
+            event: WindowEvent::MouseInput { state, button, .. },
+            ..
+        } => {
+            if button == MouseButton::Left {
+                is_left_clicked = state == ElementState::Pressed;
+            } else if button == MouseButton::Right {
+                is_right_clicked = state == ElementState::Pressed;
             }
-            Event::WindowEvent {
-                event: WindowEvent::MouseInput { state, button, .. },
-                ..
-            } => {
-                if button == MouseButton::Left {
-                    is_left_clicked = state == ElementState::Pressed;
-                } else if button == MouseButton::Right {
-                    is_right_clicked = state == ElementState::Pressed;
-                }
+        }
+        Event::WindowEvent {
+            event: WindowEvent::ModifiersChanged(m) ,
+            ..
+        } => {
+            modifiers = m.state();
+        }
+        Event::WindowEvent {
+            event:
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            physical_key: PhysicalKey::Code(code),
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                },
+            ..
+        } => match code {
+            KeyCode::Space => is_paused = !is_paused,
+            KeyCode::KeyR => {
+                camera.reset();
+                steps_per_frame = 1;
             }
-            Event::WindowEvent {
-                event: WindowEvent::ModifiersChanged(m),
-                ..
-            } => {
-                modifiers = m.state();
-            }
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                physical_key: PhysicalKey::Code(code),
-                                state: ElementState::Pressed,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } => match code {
-                KeyCode::Space => is_paused = !is_paused,
-                KeyCode::KeyR => {
-                    camera.reset();
+            KeyCode::KeyQ => elwt.exit(),
+            KeyCode::KeyI => camera.zoom(2.0),
+            KeyCode::KeyO => camera.zoom(0.5),
+            KeyCode::BracketLeft => {
+                let shift = modifiers.shift_key();
+                let amount = if shift { 10 } else { 1 };
+                if steps_per_frame > amount {
+                    steps_per_frame -= amount;
+                } else {
                     steps_per_frame = 1;
                 }
-                KeyCode::KeyQ => elwt.exit(),
-                KeyCode::KeyI => camera.zoom(2.0),
-                KeyCode::KeyO => camera.zoom(0.5),
-                KeyCode::BracketLeft => {
-                    let shift = modifiers.shift_key();
-                    let amount = if shift { 10 } else { 1 };
-                    if steps_per_frame > amount {
-                        steps_per_frame -= amount;
-                    } else {
-                        steps_per_frame = 1;
-                    }
-                }
-                KeyCode::BracketRight => {
-                    let shift = modifiers.shift_key();
-                    let amount = if shift { 10 } else { 1 };
-                    steps_per_frame += amount;
-                }
-                _ => {}
-            },
-            Event::WindowEvent {
-                event: WindowEvent::RedrawRequested,
-                ..
-            } => {
-                // Update FPS in title every second
-                frame_count += 1;
-                let now = Instant::now();
-                if now.duration_since(last_fps_update).as_secs() >= 1 {
-                    let fps = frame_count;
-                    window.set_title(&format!(
-                        "Gravity Simulation | FPS: {} | Steps/Frame: {} | Year: {:.2}",
-                        fps, steps_per_frame, total_years
-                    ));
-                    frame_count = 0;
-                    last_fps_update = now;
-                }
-
-                if !is_paused {
-                    for _ in 0..steps_per_frame {
-                        step(&mut system, dt);
-                        system.record_history();
-                        total_years += dt;
-                    }
-                }
-
-                clear_screen(&mut pixels);
-
-                // Draw grid
-                draw_grid(&mut pixels, &camera);
-
-                // Draw trails
-                for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
-                    // Dimmer version of the color for trails
-                    let trail_color = [
-                        (color[0] as f32 * 0.5) as u8,
-                        (color[1] as f32 * 0.5) as u8,
-                        (color[2] as f32 * 0.5) as u8,
-                        255,
-                    ];
-
-                    let history = &system.history[i];
-                    let mut prev_screen: Option<(i32, i32)> = None;
-
-                    for &h_pos in history {
-                        let curr_screen = camera.world_to_screen(h_pos, WIDTH, HEIGHT);
-
-                        if let Some((x0, y0)) = prev_screen {
-                            draw_line(
-                                &mut pixels,
-                                x0,
-                                y0,
-                                curr_screen.0,
-                                curr_screen.1,
-                                trail_color,
-                            );
-                        }
-                        prev_screen = Some(curr_screen);
-                    }
-                }
-
-                // Draw bodies
-                for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
-                    let pos = system.positions[i];
-                    let (sx, sy) = camera.world_to_screen(pos, WIDTH, HEIGHT);
-
-                    // Schematic scaling: ensure sun and planets are visible
-                    let radius = (system.masses[i].log10() + 8.0).max(1.0) * 1.5;
-
-                    draw_circle(&mut pixels, sx, sy, radius as i32, color);
-                }
-
-                if let Err(err) = pixels.render() {
-                    eprintln!("pixels.render() failed: {}", err);
-                    elwt.exit();
-                }
             }
-            Event::AboutToWait => {
-                window.request_redraw();
+            KeyCode::BracketRight => {
+                let shift = modifiers.shift_key();
+                let amount = if shift { 10 } else { 1 };
+                steps_per_frame += amount;
             }
             _ => {}
+        },
+        Event::WindowEvent {
+            event: WindowEvent::RedrawRequested,
+            ..
+        } => {
+            // Update FPS in title every second
+            frame_count += 1;
+            let now = Instant::now();
+            if now.duration_since(last_fps_update).as_secs() >= 1 {
+                let fps = frame_count;
+                window.set_title(&format!(
+                    "Gravity Simulation | FPS: {} | Steps/Frame: {} | Year: {:.2}",
+                    fps, steps_per_frame, total_years
+                ));
+                frame_count = 0;
+                last_fps_update = now;
+            }
+
+            if !is_paused {
+                for _ in 0..steps_per_frame {
+                    step(&mut system, dt);
+                    system.record_history();
+                    total_years += dt;
+                }
+            }
+
+            clear_screen(&mut pixels);
+
+            // Draw grid
+            draw_grid(&mut pixels, &camera, args.width, args.height);
+
+            // Draw trails
+            for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
+                // Dimmer version of the color for trails
+                let trail_color = [
+                    (color[0] as f32 * 0.5) as u8,
+                    (color[1] as f32 * 0.5) as u8,
+                    (color[2] as f32 * 0.5) as u8,
+                    255,
+                ];
+
+                let history = &system.history[i];
+                let mut prev_screen: Option<(i32, i32)> = None;
+
+                for &h_pos in history {
+                    let curr_screen = camera.world_to_screen(h_pos, args.width, args.height);
+
+                    if let Some((x0, y0)) = prev_screen {
+                        draw_line(
+                            &mut pixels,
+                            x0,
+                            y0,
+                            curr_screen.0,
+                            curr_screen.1,
+                            trail_color,
+                            args.width,
+                            args.height,
+                        );
+                    }
+                    prev_screen = Some(curr_screen);
+                }
+            }
+
+            // Draw bodies
+            for (i, &color) in body_colors.iter().enumerate().take(system.masses.len()) {
+                let pos = system.positions[i];
+                let (sx, sy) = camera.world_to_screen(pos, args.width, args.height);
+
+                // Schematic scaling: ensure sun and planets are visible
+                let radius = (system.masses[i].log10() + 8.0).max(1.0) * 1.5;
+
+                draw_circle(
+                    &mut pixels,
+                    sx,
+                    sy,
+                    radius as i32,
+                    color,
+                    args.width,
+                    args.height,
+                );
+            }
+
+            if let Err(err) = pixels.render() {
+                eprintln!("pixels.render() failed: {}", err);
+                elwt.exit();
+            }
         }
+        Event::AboutToWait => {
+            window.request_redraw();
+        }
+        _ => {}
     })?;
 
     Ok(())

@@ -28,6 +28,54 @@ impl Camera {
         self.yaw = 0.0;
     }
 
+    /// Automatically adjust camera to fit all significant bodies in the viewport
+    pub fn fit_to_system(&mut self, system: &crate::system::SystemState, width: u32, height: u32) {
+        if system.positions.is_empty() {
+            return;
+        }
+
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+
+        // Apply 3D rotation to find bounds in camera space
+        let rotation = DMat3::from_rotation_x(self.pitch) * DMat3::from_rotation_y(self.yaw);
+
+        let mut count = 0;
+        for i in 0..system.positions.len() {
+            // Only track bodies with significant mass to avoid tracking ejected stars
+            if system.masses[i] < 1e-9 && system.positions.len() > 10 {
+                continue;
+            }
+
+            let rotated_pos = rotation * system.positions[i];
+            min_x = min_x.min(rotated_pos.x);
+            max_x = max_x.max(rotated_pos.x);
+            min_y = min_y.min(rotated_pos.y);
+            max_y = max_y.max(rotated_pos.y);
+            count += 1;
+        }
+
+        if count == 0 {
+            return;
+        }
+
+        let sys_width = (max_x - min_x).max(0.1);
+        let sys_height = (max_y - min_y).max(0.1);
+
+        // Center the offset
+        let rotated_center = DVec3::new((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, 0.0);
+        // Inverse rotation to get world center
+        self.offset = rotation.transpose() * rotated_center;
+
+        let scale_x = (width as f64) / sys_width;
+        let scale_y = (height as f64) / sys_height;
+
+        // Use the smaller scale to fit everything, with 10% padding
+        self.scale = scale_x.min(scale_y) * 0.9;
+    }
+
     /// Convert world coordinates to pixel coordinates using 3D rotation and 2D projection
     pub fn world_to_screen(
         &self,
